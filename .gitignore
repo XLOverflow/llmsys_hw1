@@ -6,3 +6,4 @@ __pycache__/
 build/
 dist/
 minitorch/cuda_kernels/*.so
+.hypothesis/
