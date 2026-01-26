@@ -200,9 +200,8 @@ __device__ void broadcast_index(const int *big_index, const int *big_shape, cons
    *    big_index: multidimensional index of bigger tensor
    *    big_shape: tensor shape of bigger tensor
    *    shape: tensor shape of smaller tensor
-   *    nums_big_dims: number of dimensions in bigger tensor
    *    out_index: multidimensional index of smaller tensor
-   *    nums_big_dims: number of dimensions in bigger tensor
+   *    num_dims_big: number of dimensions in bigger tensor
    *    num_dims: number of dimensions in smaller tensor
    *
    * Returns:

@@ -252,7 +252,7 @@ __global__ void MatrixMultiplyKernel(scalar_t* out, ...) {
 
 #### Hints - Simple Parallelization
 
-A simple way to parallel matrix multiplication is to have every element in the output matrix calculated individually in each thread, as is shown in Figure 3. We provide the pseudocode here for you. Refer to Chapter 4.3 Matrix Multiplication in [Programming Massively Parallel Processors, 4th Ed](https://learning.oreilly.com/library/view/programming-massively-parallel/9780323984638/?sso_link=yes&sso_link_from=cmu-edu) for more details.
+A simple way to parallel matrix multiplication is to have every element in the output matrix calculated individually in each thread, as is shown in Figure 3. We provide the pseudocode here for you. Refer to Chapter 3.4 Matrix Multiplication in [Programming Massively Parallel Processors, 4th Ed](https://learning.oreilly.com/library/view/programming-massively-parallel/9780323984638/?sso_link=yes&sso_link_from=cmu-edu) for more details.
 
 ```cpp
 __global__ void mm(float A[N][N], float B[N][N], float C[N][N]) {
