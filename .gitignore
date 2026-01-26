@@ -5,3 +5,4 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+minitorch/cuda_kernels/*.so
