@@ -395,32 +395,56 @@ __global__ void reduceKernel(
    *  None (Fills in out array)
    */
 
-  // __shared__ double cache[BLOCK_DIM]; // Uncomment this line if you want to use shared memory to store partial results
+  // Shared memory for tree-based parallel reduction
+  __shared__ float cache[BLOCK_DIM];
   int out_index[MAX_DIMS];
 
   /// BEGIN HW1_3
-  /// TODO
-  // 1. Define the position of the output element that this thread or this block will write to
-  int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx >= out_size) {
+  // Optimized tree-based parallel reduction
+  // Each BLOCK handles one output element, threads within block cooperate
+
+  // 1. Each block handles one output element
+  int out_idx = blockIdx.x;
+  if (out_idx >= out_size) {
     return;
   }
-  // 2. Convert the out_pos to the out_index according to out_shape
-  to_index(idx, out_shape, out_index, shape_size);
+
+  // 2. Convert out_idx to multi-dimensional index
+  to_index(out_idx, out_shape, out_index, shape_size);
+
+  // 3. Calculate out_pos BEFORE modifying out_index
   int out_pos = index_to_position(out_index, out_strides, shape_size);
-  // 3. Initialize the reduce_value to the output element
-  float reduced_value = reduce_value;
-  // 4. Iterate over the reduce_dim dimension of the input array to compute the reduced value
-  for (int i = 0; i < a_shape[reduce_dim]; ++i) {
-    // Set the reduce_dim index in out_index to i to get the corresponding index in a_storage
+
+  // 4. Each thread handles part of the reduce dimension (strided pattern)
+  int tid = threadIdx.x;
+  int reduce_size = a_shape[reduce_dim];
+
+  // Initialize local accumulator with reduce_value
+  float local_reduce = reduce_value;
+
+  // Each thread accumulates its portion: tid, tid+blockDim, tid+2*blockDim, ...
+  for (int i = tid; i < reduce_size; i += blockDim.x) {
     out_index[reduce_dim] = i;
-    // Calculate the position of the element in a_storage according to out_index and a_strides
     int a_pos = index_to_position(out_index, a_strides, shape_size);
-    // Apply the reduce function to the current reduced_value and the input element
-    reduced_value = fn(fn_id, reduced_value, a_storage[a_pos]);
+    local_reduce = fn(fn_id, local_reduce, a_storage[a_pos]);
   }
-  // 5. Write the reduced value to out memory
-  out[out_pos] = reduced_value;
+
+  // 5. Store to shared memory
+  cache[tid] = local_reduce;
+  __syncthreads();
+
+  // 6. Tree-based reduction in shared memory
+  for (int s = blockDim.x / 2; s > 0; s >>= 1) {
+    if (tid < s) {
+      cache[tid] = fn(fn_id, cache[tid], cache[tid + s]);
+    }
+    __syncthreads();
+  }
+
+  // 7. Thread 0 writes the final result
+  if (tid == 0) {
+    out[out_pos] = cache[0];
+  }
 
   /// END HW1_3
 }
@@ -722,9 +746,9 @@ extern "C"
     cudaMemcpy(d_a_shape, a_shape, shape_size * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_a_strides, a_strides, shape_size * sizeof(int), cudaMemcpyHostToDevice);
 
-    // Launch kernel
-    int threadsPerBlock = 32;
-    int blocksPerGrid = (out_size + threadsPerBlock - 1) / threadsPerBlock;
+    // Launch kernel - one block per output element for parallel reduction
+    int threadsPerBlock = 256;  // More threads for better parallelism in reduction
+    int blocksPerGrid = out_size;  // One block per output element
     reduceKernel<<<blocksPerGrid, threadsPerBlock>>>(
         d_out, d_out_shape, d_out_strides, out_size,
         d_a, d_a_shape, d_a_strides,
