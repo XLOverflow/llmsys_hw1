@@ -401,12 +401,27 @@ __global__ void reduceKernel(
   /// BEGIN HW1_3
   /// TODO
   // 1. Define the position of the output element that this thread or this block will write to
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx >= out_size) {
+    return;
+  }
   // 2. Convert the out_pos to the out_index according to out_shape
+  to_index(idx, out_shape, out_index, shape_size);
+  int out_pos = index_to_position(out_index, out_strides, shape_size);
   // 3. Initialize the reduce_value to the output element
+  float reduced_value = reduce_value;
   // 4. Iterate over the reduce_dim dimension of the input array to compute the reduced value
+  for (int i = 0; i < a_shape[reduce_dim]; ++i) {
+    // Set the reduce_dim index in out_index to i to get the corresponding index in a_storage
+    out_index[reduce_dim] = i;
+    // Calculate the position of the element in a_storage according to out_index and a_strides
+    int a_pos = index_to_position(out_index, a_strides, shape_size);
+    // Apply the reduce function to the current reduced_value and the input element
+    reduced_value = fn(fn_id, reduced_value, a_storage[a_pos]);
+  }
   // 5. Write the reduced value to out memory
+  out[out_pos] = reduced_value;
 
-  assert(false && "Not Implemented");
   /// END HW1_3
 }
 
