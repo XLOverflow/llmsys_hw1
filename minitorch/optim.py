@@ -87,7 +87,7 @@ class Adam(Optimizer):
 
                     state['step'] += 1
                     state['exp_avg'] = state['exp_avg'] * self.beta1 + (1 - self.beta1) * grad
-                    state['exp_avg_sq'] = state['exp_avg_sq'] * self.beta2 + (1 - self.beta1) * grad ** 2
+                    state['exp_avg_sq'] = state['exp_avg_sq'] * self.beta2 + (1 - self.beta2) * grad ** 2
 
                     denom = state['exp_avg_sq'] ** 0.5 + self.eps
 
