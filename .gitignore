@@ -1,0 +1,14 @@
+# Python cache
+__pycache__/
+**/__pycache__/
+*.py[cod]
+
+# Local virtual environment
+.venv/
+
+# Built CUDA shared objects
+minitorch/cuda_kernels/softmax_kernel.so
+minitorch/cuda_kernels/layernorm_kernel.so
+
+# Local experiment artifacts
+workdir_*/

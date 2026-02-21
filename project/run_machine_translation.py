@@ -1,6 +1,7 @@
 from functools import partial
 import time
 import os
+import sys
 import fire
 import tqdm
 import json
@@ -13,6 +14,11 @@ from distutils.util import strtobool
 from sacrebleu.metrics import BLEU
 from transformers import AutoTokenizer
 from tokenizers import ByteLevelBPETokenizer
+
+# Allow direct execution via `python project/run_machine_translation.py ...`.
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 import minitorch
 from minitorch import DecoderLM
@@ -60,16 +66,17 @@ def get_tokenizer(examples, vocab_size, src_key, tgt_key, workdir):
     - tokenizer: The trained tokenizer with special tokens,
         e.g., ("<eos_de>", "<eos_en>", "<pad>") if src_key and tgt_key are "de" and "en", respectively.
     """
-    tokenizer = ByteLevelBPETokenizer()
+    tokenizer_path = f'{workdir}/tokenizer.json'
+    config_path = f'{workdir}/config.json'
 
-    # Customized training
-    tokenizer.train_from_iterator(
-        [[example[src_key], example[tgt_key]] for example in examples],
-        vocab_size=vocab_size,
-        special_tokens=[f'<eos_{src_key}>', f'<eos_{tgt_key}>', '<pad>'])
-
-    tokenizer.save(f'{workdir}/tokenizer.json')
-    json.dump({'model_type': 'gpt2'}, open(f'{workdir}/config.json', 'w'))
+    if not (os.path.exists(tokenizer_path) and os.path.exists(config_path)):
+        tokenizer = ByteLevelBPETokenizer()
+        tokenizer.train_from_iterator(
+            [[example[src_key], example[tgt_key]] for example in examples],
+            vocab_size=vocab_size,
+            special_tokens=[f'<eos_{src_key}>', f'<eos_{tgt_key}>', '<pad>'])
+        tokenizer.save(tokenizer_path)
+        json.dump({'model_type': 'gpt2'}, open(config_path, 'w'))
 
     tokenizer = AutoTokenizer.from_pretrained(
         workdir,
@@ -172,9 +179,12 @@ def loss_fn(batch, model):
     label_token_weights = batch['label_token_weights'].view(batch_size * seq_len)
 
     targets.requires_grad_(True)
+    # Numerical-stability guard: keep logits centered before exp/log in softmax loss.
+    logits = logits - minitorch.nn.max(logits, dim=1)
     loss = minitorch.nn.softmax_loss(logits=logits, target=targets)
 
-    return ((loss * label_token_weights).sum() / label_token_weights.sum())
+    weighted_loss = (loss * label_token_weights).sum()
+    return weighted_loss / (label_token_weights.sum() + 1e-8)
 
 
 def train(model, optimizer, examples, n_samples, collate_fn, batch_size, desc):
@@ -222,7 +232,7 @@ def main(dataset_name='bbaaaa/iwslt14-de-en-preprocess',
          model_max_length=40,
          n_epochs=1,
          batch_size=128,
-         learning_rate=0.02,
+         learning_rate=0.002,
          samples_per_epoch=20000,
          n_vocab=10000,
          n_embd=256,

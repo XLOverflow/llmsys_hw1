@@ -136,7 +136,8 @@ class PowerScalar(Function):
                 Tensor containing the result of raising every element of a to scalar.
         """
         # COPY FROM ASSIGN3
-        raise NotImplementedError
+        ctx.save_for_backward(a, scalar)
+        return a.f.pow_scalar_zip(a, scalar)
 
     @staticmethod
     def backward(ctx: Context, grad_output: Tensor) -> Tuple[Tensor, float]:
@@ -161,7 +162,8 @@ class PowerScalar(Function):
         grad_a    = None
         
         # COPY FROM ASSIGN3
-        raise NotImplementedError
+        scalar_minus_one = scalar - scalar._ensure_tensor(1.0)
+        grad_a = grad_output * scalar * a.f.pow_scalar_zip(a, scalar_minus_one)
 
         return (grad_a, 0.0)
 
@@ -185,7 +187,9 @@ class Tanh(Function):
                 Tensor containing the element-wise tanh of a.
         """
         # COPY FROM ASSIGN3
-        raise NotImplementedError
+        out = a.f.tanh_map(a)
+        ctx.save_for_backward(out)
+        return out
     
     @staticmethod
     def backward(ctx: Context, grad_output: Tensor) -> Tensor:
@@ -204,7 +208,8 @@ class Tanh(Function):
                 gradient_for_a must be the correct element-wise gradient for tanh.
         """
         # COPY FROM ASSIGN3
-        raise NotImplementedError
+        (out,) = ctx.saved_values
+        return grad_output * (out._ensure_tensor(1.0) - out * out)
 
 
 class Sigmoid(Function):
@@ -383,13 +388,23 @@ class Attn_Softmax(Function):
     @staticmethod
     def forward(ctx: Context, inp: Tensor, mask: Tensor) -> Tensor:
       #   BEGIN ASSIGN4_1_1
-      raise NotImplementedError("Need to implement for Assignment 3")
+      if not inp._tensor.is_contiguous():
+        inp = inp.contiguous()
+      if not mask._tensor.is_contiguous():
+        mask = mask.contiguous()
+      out = inp.f.attn_softmax_fw(inp, mask)
+      ctx.save_for_backward(out)
+      return out
       #   END ASSIGN4_1_1
 
     @staticmethod
     def backward(ctx: Context, out_grad: Tensor) -> Tensor:
       #   BEGIN ASSIGN4_1_2
-      raise NotImplementedError("Need to implement for Assignment 3")
+      if not out_grad._tensor.is_contiguous():
+        out_grad = out_grad.contiguous()
+      (soft_out,) = ctx.saved_values
+      inp_grad = out_grad.f.attn_softmax_bw(out_grad, soft_out)
+      return inp_grad, inp_grad
       #   END ASSIGN4_1_2
 
 
@@ -397,13 +412,27 @@ class LayerNorm(Function):
     @staticmethod
     def forward(ctx: Context, inp: Tensor, gamma: Tensor, beta: Tensor) -> Tensor:
       #   BEGIN ASSIGN4_2_1
-      raise NotImplementedError("Need to implement for Assignment 3")
+      if not inp._tensor.is_contiguous():
+        inp = inp.contiguous()
+      if not gamma._tensor.is_contiguous():
+        gamma = gamma.contiguous()
+      if not beta._tensor.is_contiguous():
+        beta = beta.contiguous()
+      out, var, mean = inp.f.layernorm_fw(inp, gamma, beta)
+      ctx.save_for_backward(inp, gamma, beta, var, mean)
+      return out
       #   END ASSIGN4_2_1
 
     @staticmethod
     def backward(ctx: Context, out_grad: Tensor) -> Tensor:
       #   BEGIN ASSIGN4_2_2
-      raise NotImplementedError("Need to implement for Assignment 3")
+      if not out_grad._tensor.is_contiguous():
+        out_grad = out_grad.contiguous()
+      inp, gamma, beta, var, mean = ctx.saved_values
+      inp_grad, gamma_grad, beta_grad = out_grad.f.layernorm_bw(
+          out_grad, inp, gamma, beta, var, mean
+      )
+      return inp_grad, gamma_grad, beta_grad
       #   END ASSIGN4_2_2
 
 

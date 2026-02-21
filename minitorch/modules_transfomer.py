@@ -112,7 +112,21 @@ class MultiHeadAttention(Module):
             result = attn_output.contiguous().view(batch_size, queries_len, self.n_embd)
         else:
             # BEGIN ASSIGN3_3
-            raise NotImplementedError
+            attn_scores = q @ kT
+            attn_scores = attn_scores / (self.attn_hidden_dim ** 0.5)
+            if self.causal:
+                mask = self.create_causal_mask(batch_size, num_head, queries_len)
+                attn_scores = attn_scores + mask
+            # Fused softmax kernel expects a [batch, 1, 1, to_len] style mask.
+            softmax_mask = tensor_from_numpy(
+                np.zeros((batch_size, 1, 1, kT.shape[-1]), dtype=datatype),
+                backend=self.backend,
+            )
+            attn_weights = attn_scores.attn_softmax(softmax_mask)
+            attn_weights = self.dropout(attn_weights)
+            attn_output = attn_weights @ v
+            attn_output = attn_output.permute(0, 2, 1, 3)
+            result = attn_output.contiguous().view(batch_size, queries_len, self.n_embd)
             # END ASSIGN3_3
 
         return result
@@ -199,7 +213,8 @@ class TransformerLayer(Module):
             self.ln_2 = LayerNorm1d(n_embd, ln_eps, backend)
         else:
             # BEGIN ASSIGN3_3
-            raise NotImplementedError
+            self.ln_1 = LayerNorm1d(n_embd, ln_eps, backend)
+            self.ln_2 = LayerNorm1d(n_embd, ln_eps, backend)
             # END ASSIGN3_3
 
     def forward(self, x):
@@ -215,7 +230,15 @@ class TransformerLayer(Module):
             x = x + self.ff(self.ln_2(x.view(batch_size * seq_len, x_dim)).view(batch_size, seq_len, x_dim))
         else:
             # BEGIN ASSIGN3_3
-            raise NotImplementedError
+            ln1 = x.view(batch_size * seq_len, x_dim).layernorm(
+                self.ln_1.weights.value, self.ln_1.bias.value
+            ).view(batch_size, seq_len, x_dim)
+            x = x + self.attention(ln1)
+
+            ln2 = x.view(batch_size * seq_len, x_dim).layernorm(
+                self.ln_2.weights.value, self.ln_2.bias.value
+            ).view(batch_size, seq_len, x_dim)
+            x = x + self.ff(ln2)
             # END ASSIGN3_3
 
         return x
@@ -275,7 +298,7 @@ class DecoderLM(Module):
             self.ln = LayerNorm1d(n_embd, ln_eps, backend)
         else:
             # BEGIN ASSIGN3_3
-            raise NotImplementedError
+            self.ln = LayerNorm1d(n_embd, ln_eps, backend)
             # END ASSIGN3_3
         
     def forward(self, idx):
@@ -304,7 +327,19 @@ class DecoderLM(Module):
             x = self.lm_head(x_2d).view(batch_size, seq_len, self.n_vocab)
         else:
             # BEGIN ASSIGN3_3
-            raise NotImplementedError
+            token_emb = self.token_embeddings(idx)
+            pos_emb   = self.position_embeddings(pos)
+            x = token_emb + pos_emb
+            x = self.dropout(x)
+            x = self.t_layer_1(x)
+            x = self.t_layer_2(x)
+            x = self.t_layer_3(x)
+            x = self.t_layer_4(x)
+            x = x.view(batch_size * seq_len, self.n_embd).layernorm(
+                self.ln.weights.value, self.ln.bias.value
+            ).view(batch_size, seq_len, self.n_embd)
+            x_2d = x.contiguous().view(batch_size * seq_len, self.n_embd)
+            x = self.lm_head(x_2d).view(batch_size, seq_len, self.n_vocab)
             # END ASSIGN3_3
 
         return x
