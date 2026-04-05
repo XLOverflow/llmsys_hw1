@@ -1,0 +1,27 @@
+# Model outputs
+output_*/
+*.pt
+*.bin
+*.safetensors
+
+# DeepSpeed
+*.ds_store
+
+# HuggingFace cache
+huggingface/
+huggingface_cache/
+
+# Python
+__pycache__/
+**/__pycache__/
+*.pyc
+*.egg-info/
+
+# Data cache
+/tmp/data_files/
+data/
+
+# Logs
+*.log
+tensorboard/
+step1_tensorboard/
