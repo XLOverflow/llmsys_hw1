@@ -13,7 +13,7 @@ mkdir -p $OUTPUT
 # TODO: modify the args to start training for LoRA
 deepspeed main.py \
    --data_split 2,4,4 \
-   --model_name_or_path NousResearch/Llama-2-7b-hf \
+   --model_name_or_path meta-llama/Llama-2-7b-hf \
    --per_device_train_batch_size 1 \
    --per_device_eval_batch_size 4 \
    --max_seq_len 512 \
@@ -31,4 +31,4 @@ deepspeed main.py \
    --lora_dim 16 \
    --only_optimize_lora \
    --output_dir $OUTPUT \
-   #&> $OUTPUT/training.log
+   &> $OUTPUT/training.log
